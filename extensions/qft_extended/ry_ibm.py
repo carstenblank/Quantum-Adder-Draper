@@ -5,7 +5,10 @@ class RYGate_ibm(CompositeGate):
 
     def __init__(self, θ, q, circ=None):
         super().__init__("ry_ibm", [θ], [q], circ)
-        self.u3(θ,0,0, q)
+        if θ != 0.0:
+            self.u3(θ,0,0, q)
+        #else:
+        #    self.iden(q)
 
 
 def ry_ibm(self,  θ: float, q):

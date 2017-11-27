@@ -6,3 +6,4 @@ from .phase import phase
 from .qft import qft
 from .rz_ibm import rz_ibm
 from .ry_ibm import ry_ibm
+from .comment import comment
