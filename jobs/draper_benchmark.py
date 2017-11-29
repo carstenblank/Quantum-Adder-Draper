@@ -1,5 +1,7 @@
 import itertools
 import time
+
+from datetime import date, datetime
 from qiskit import QuantumProgram, Result
 import algorithms.draper as draper
 from interfaces import ApiCredentials
@@ -28,7 +30,7 @@ def sync_job(Q_program: QuantumProgram, backend: str):
             computational_result = max(counts.keys(), key=(lambda key: counts[key]))
             success = expected == computational_result
 
-        log = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (backend, a, b, op_length, shots, expected, computational_result, success, counts, calibrations)
+        log = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), backend, a, b, op_length, shots, expected, computational_result, success, counts, calibrations)
         print(log)
 
 
@@ -76,7 +78,7 @@ def async_job(Q_program: QuantumProgram, backend: str):
                 computational_result = max(counts.keys(), key=(lambda key: counts[key]))
                 success = jobEntry[6] == computational_result
 
-        log = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (jobEntry[0], jobEntry[1], jobEntry[2], jobEntry[3], jobEntry[4],
+        log = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), jobEntry[0], jobEntry[1], jobEntry[2], jobEntry[3], jobEntry[4],
                                                  jobEntry[5], jobEntry[6], computational_result, success, counts, calibrations)
         print(log)
 
