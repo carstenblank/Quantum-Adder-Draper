@@ -19,13 +19,11 @@ class GencUGate(CompositeGate):
         self.u1(α, control)
         #self.comment(["# gates: %d" % len(self.data), "END gencU(...)"])
 
-    def _cx(self, control: Tuple[QuantumRegister,int], target: Tuple[QuantumRegister,int], backward):
+    def _cx(self, control, target, backward):
         #self.comment(["BEGIN cnot"])
         if backward:
-            self.h(control)
-            self.h(target)
-            #self.u3(math.pi/2,0.0,0.0,control) # == self.h(control)
-            #self.u3(math.pi / 2, 0.0, 0.0, target)  # == self.h(target)
+            self.u3(math.pi/2,0.0,0.0,control) # == self.h(control)
+            self.u3(math.pi / 2, 0.0, 0.0, target)  # == self.h(target)
 
         if backward:
             self.cx(target, control)
@@ -33,10 +31,8 @@ class GencUGate(CompositeGate):
             self.cx(control, target)
 
         if backward:
-            self.h(control)
-            self.h(target)
-            #self.u3(math.pi / 2, 0.0, 0.0, control)  # == self.h(control)
-            #self.u3(math.pi / 2, 0.0, 0.0, target)  # == self.h(target)
+            self.u3(math.pi / 2, 0.0, 0.0, control)  # == self.h(control)
+            self.u3(math.pi / 2, 0.0, 0.0, target)  # == self.h(target)
         #self.comment(["END cnot"])
 
     def _a(self, target):
