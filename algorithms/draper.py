@@ -1,5 +1,7 @@
 from datetime import datetime
 from typing import Dict, Tuple, Callable, Any
+
+import math
 from qiskit import QuantumProgram, QuantumRegister, QuantumCircuit, Result
 from extensions import qft_extended
 
@@ -9,6 +11,26 @@ import interfaces
 backend_local_simulator = "local_qasm_simulator"
 backend_real_processor = "ibmqx4"
 backend_online_simulator = "ibmqx_qasm_simulator"
+
+
+def algorithm_prime(qc: QuantumCircuit, a1: Tuple[QuantumRegister,int], a2: Tuple[QuantumRegister,int],
+                      b1: Tuple[QuantumRegister,int], b2: Tuple[QuantumRegister,int]) -> QuantumCircuit:
+    qc.comment(["BEGIN QFT"])
+    qc.h(a1)
+    qc.cphase(math.pi/2, a1, a2, cnot_back=True)
+    qc.h(a2)
+    qc.comment(["END QFT"])
+
+    qc.cphase(math.pi, a2, b2)
+    qc.cphase(math.pi/2, a1, b2)
+    qc.cphase(math.pi, a1, b1, cnot_back=True)
+
+    qc.comment(["BEGIN QFT†"])
+    qc.h(a2)
+    qc.cphase(math.pi/2, a1, a2, cnot_back=True).inverse()
+    qc.h(a1)
+    qc.comment(["END QFT†"])
+    return qc
 
 
 def algorithm_regular(qc: QuantumCircuit, a1: Tuple[QuantumRegister,int], a2: Tuple[QuantumRegister,int],
