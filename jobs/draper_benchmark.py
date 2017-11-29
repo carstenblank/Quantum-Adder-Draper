@@ -2,9 +2,9 @@ import itertools
 
 import time
 from qiskit import QuantumProgram, Result
-
-import draper
-
+import algorithms.draper as draper
+from interfaces import ApiCredentials
+import credentials
 
 def local_simulator(Q_program: QuantumProgram):
     backend = draper.backend_local_simulator
@@ -12,7 +12,8 @@ def local_simulator(Q_program: QuantumProgram):
 
     for a,b in itertools.product(bits, bits):
         qasm, expected, qobj = draper.create_experiment(Q_program, a, b, "draper",
-                                           draper.backend_real_processor, draper.algorithm_regular)
+                                                        draper.backend_real_processor,
+                                                        draper.algorithm_regular)
         shots = 1000
         result: Result = Q_program.execute(["draper"], backend, shots=shots)
 
@@ -107,9 +108,9 @@ def real(Q_program):
 
 
 if __name__ == "__main__":
-
+    credentials = ApiCredentials()
     Q_program: QuantumProgram = QuantumProgram()
-    Q_program.set_api(draper.token, draper.url)
+    Q_program.set_api(credentials.GetToken(), credentials.GetApiUri())
 
     #real(Q_program)
     #simulator(Q_program, draper.backend_local_simulator)

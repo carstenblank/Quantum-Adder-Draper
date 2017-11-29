@@ -1,15 +1,10 @@
 from datetime import datetime
-import json
 from typing import Dict, Tuple, Callable, Any
-
 from qiskit import QuantumProgram, QuantumRegister, QuantumCircuit, Result
-import qft_extended
-from qiskit.tools.qcvv.tomography import build_state_tomography_circuits
+from extensions import qft_extended
 
-from qiskit.extensions.standard import barrier
-
-token = "ca665158a6f8d6515e9b8a7d1502e3ebce140b217f896df0e82cf343f71e922c5ee7c6a24ded23c5d7def3241ce06a265f95f499b0b1b912a2c366b6e1d70f18"
-url = 'https://quantumexperience.ng.bluemix.net/api'
+import credentials
+import interfaces
 
 backend_local_simulator = "local_qasm_simulator"
 backend_real_processor = "ibmqx4"
@@ -103,11 +98,11 @@ def create_experiment(Q_program: QuantumProgram, a: str, b: str, name:str, backe
     processor = "ibmqx4"
     #print("Compile & Run manually for '%s' using backend '%s':" % (processor, backend))
 
-    qobj_id = "@%s: %s(%s,%s) -> %s" % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), name, a, b, expected)
+    #qobj_id = "@%s: %s(%s,%s) -> %s" % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), name, a, b, expected)
 
     conf = Q_program.get_backend_configuration(processor, list_format=False)
     qobj = Q_program.compile(name_of_circuits=[name], backend=backend, config=conf,
-                             max_credits=3, qobjid=qobj_id)
+                             max_credits=3)
 
     qasm = "\n".join(filter(lambda x: len(x) > 0, qc.qasm().split("\n")))#Q_program.get_compiled_qasm(qobj, name)
     # measurements = list(filter(lambda r: "measure" in r, qasm.split('\n')))
@@ -118,8 +113,9 @@ def create_experiment(Q_program: QuantumProgram, a: str, b: str, name:str, backe
 
 
 if __name__ == "__main__":
+    credentials = interfaces.ApiCredentials()
     Q_program: QuantumProgram = QuantumProgram()
-    Q_program.set_api(token, url)
+    Q_program.set_api(credentials.GetToken(), credentials.GetApiUri())
 
     qasm, expected, _ = create_experiment(Q_program, "0b11", "0b01", "draper",
                                        "local_qasm_simulator", algorithm_regular)
