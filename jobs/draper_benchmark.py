@@ -45,6 +45,14 @@ def async_job(Q_program: QuantumProgram, backend: str):
                                            draper.backend_real_processor, draper.algorithm_prime)
         shots = 1024
         qasm_alt = qobj["circuits"][0]["compiled_circuit_qasm"]
+
+        credits = Q_program.get_api().get_my_credits()
+        print("Current credits: %s" % credits)
+        while credits["remaining"] < 3 and backend.find("simulat") != -1:
+            time.sleep(3*60)
+            credits = Q_program.get_api().get_my_credits()
+            print("Current credits: %s" % credits)
+
         job_result = Q_program.get_api().run_job([ {"qasm": qasm_alt} ], backend, shots, max_credits=3, seed=None)
         jobId = job_result["id"]
 
@@ -113,5 +121,4 @@ if __name__ == "__main__":
     credentials = ApiCredentials()
     Q_program: QuantumProgram = QuantumProgram()
     Q_program.set_api(credentials.GetToken(), credentials.GetApiUri())
-    print("Current Credits: %s" % Q_program.get_api().get_my_credits())
     async_job(Q_program, draper.backend_online_simulator)
