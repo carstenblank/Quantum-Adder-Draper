@@ -1,5 +1,6 @@
 import itertools
 import time
+import logging
 
 from datetime import date, datetime
 
@@ -8,6 +9,20 @@ from qiskit import QuantumProgram, Result
 import algorithms.draper as draper
 from interfaces import ApiCredentials
 import credentials
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s')
+
+logging.getLogger().handlers.clear()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch = logging.StreamHandler()
+ch.setFormatter(formatter)
+ch.setLevel(logging.DEBUG)
+logging.getLogger().addHandler(ch)
+
+log = logging.getLogger("draper")
+log.setLevel(10)
 
 
 def sync_job(Q_program: QuantumProgram, backend: str):
@@ -32,8 +47,8 @@ def sync_job(Q_program: QuantumProgram, backend: str):
             computational_result = max(counts.keys(), key=(lambda key: counts[key]))
             success = expected == computational_result
 
-        log = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), backend, a, b, op_length, shots, expected, computational_result, success, counts, calibrations)
-        print(log)
+        log_msg = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), backend, a, b, op_length, shots, expected, computational_result, success, counts, calibrations)
+        print(log_msg)
 
 
 def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = True):
@@ -49,31 +64,31 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
         qasm_alt = qobj["circuits"][0]["compiled_circuit_qasm"]
 
         credits = Q_program.get_api().get_my_credits()
-        print("Current credits: %s" % credits["remaining"])
-        sys.stdout.flush()
+        log.debug("Current credits: %s" % credits["remaining"])
+        #sys.stdout.flush()
         while credits["remaining"] < 3 and block_missing_credits:
             time.sleep(10)
             credits = Q_program.get_api().get_my_credits()
-            print("Current credits: %s" % credits["remaining"])
-            sys.stdout.flush()
+            log.debug("Current credits: %s" % credits["remaining"])
+            #sys.stdout.flush()
 
         job_result = Q_program.get_api().run_job([ {"qasm": qasm_alt} ], backend, shots, max_credits=3, seed=None)
         jobId = job_result["id"]
 
         op_length = len(qasm.split("\n"))
         job = [ backend, jobId, a, b, op_length, shots, expected ]
-        print("Added job %s (%s+%s)..." % (jobId, a, b))
-        sys.stdout.flush()
+        log.debug("Added job %s (%s+%s)..." % (jobId, a, b))
+        #sys.stdout.flush()
         running_jobs.append(job)
 
     while len(running_jobs) > 0:
         for jobEntry in running_jobs:
             job_result = Q_program.get_api().get_job(jobEntry[1])
-            print("Checking job %s..." % (jobEntry[1]))
-            sys.stdout.flush()
+            log.debug("Checking job %s..." % (jobEntry[1]))
+            #sys.stdout.flush()
             if job_result["status"] == "COMPLETED":
-                print("Done job %s..." % (jobEntry[1]))
-                sys.stdout.flush()
+                log.debug("Done job %s..." % (jobEntry[1]))
+                #sys.stdout.flush()
                 running_jobs.remove(jobEntry)
                 jobEntry.append(job_result)
                 done_jobs.append(jobEntry)
@@ -84,7 +99,7 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
         computational_result = ""
         success = False
         counts = dict()
-        calibrations = []
+        calibrations = {}
         computational_result_prob = 0.0
 
         if "qasms" in result and len(result["qasms"]) == 1 and "data" in result["qasms"][0]:
@@ -99,12 +114,12 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
             if "calibration" in result:
                 calibrations = result["calibration"]
 
-        log = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), jobEntry[0], jobEntry[1],
+        log_msg = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), jobEntry[0], jobEntry[1],
                                                        jobEntry[2], jobEntry[3], jobEntry[4],jobEntry[5], jobEntry[6],
                                                        computational_result, computational_result_prob, success,
                                                        counts, calibrations)
-        print(log)
-        sys.stdout.flush()
+        log.info(log_msg)
+        #sys.stdout.flush()
 
 
 def real(Q_program):
