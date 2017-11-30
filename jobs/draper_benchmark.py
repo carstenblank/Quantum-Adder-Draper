@@ -2,6 +2,8 @@ import itertools
 import time
 
 from datetime import date, datetime
+
+import sys
 from qiskit import QuantumProgram, Result
 import algorithms.draper as draper
 from interfaces import ApiCredentials
@@ -34,7 +36,7 @@ def sync_job(Q_program: QuantumProgram, backend: str):
         print(log)
 
 
-def async_job(Q_program: QuantumProgram, backend: str):
+def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = True):
     bits = ["0b00", "0b01", "0b10", "0b11"]
 
     running_jobs = []
@@ -47,11 +49,13 @@ def async_job(Q_program: QuantumProgram, backend: str):
         qasm_alt = qobj["circuits"][0]["compiled_circuit_qasm"]
 
         credits = Q_program.get_api().get_my_credits()
-        print("Current credits: %s" % credits)
-        while credits["remaining"] < 3 and backend.find("simulat") != -1:
-            time.sleep(3*60)
+        print("Current credits: %s" % credits["remaining"])
+        sys.stdout.flush()
+        while credits["remaining"] < 3 and block_missing_credits:
+            time.sleep(10)
             credits = Q_program.get_api().get_my_credits()
-            print("Current credits: %s" % credits)
+            print("Current credits: %s" % credits["remaining"])
+            sys.stdout.flush()
 
         job_result = Q_program.get_api().run_job([ {"qasm": qasm_alt} ], backend, shots, max_credits=3, seed=None)
         jobId = job_result["id"]
@@ -59,6 +63,7 @@ def async_job(Q_program: QuantumProgram, backend: str):
         op_length = len(qasm.split("\n"))
         job = [ backend, jobId, a, b, op_length, shots, expected ]
         print("Added job %s (%s+%s)..." % (jobId, a, b))
+        sys.stdout.flush()
         running_jobs.append(job)
 
     while len(running_jobs) > 0:
@@ -67,6 +72,7 @@ def async_job(Q_program: QuantumProgram, backend: str):
             print("Checking job %s..." % (jobEntry[1]))
             if job_result["status"] == "COMPLETED":
                 print("Done job %s..." % (jobEntry[1]))
+                sys.stdout.flush()
                 running_jobs.remove(jobEntry)
                 jobEntry.append(job_result)
                 done_jobs.append(jobEntry)
@@ -89,6 +95,7 @@ def async_job(Q_program: QuantumProgram, backend: str):
         log = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), jobEntry[0], jobEntry[1], jobEntry[2], jobEntry[3], jobEntry[4],
                                                  jobEntry[5], jobEntry[6], computational_result, success, counts, calibrations)
         print(log)
+        sys.stdout.flush()
 
 
 def real(Q_program):
@@ -121,4 +128,5 @@ if __name__ == "__main__":
     credentials = ApiCredentials()
     Q_program: QuantumProgram = QuantumProgram()
     Q_program.set_api(credentials.GetToken(), credentials.GetApiUri())
-    async_job(Q_program, draper.backend_online_simulator)
+    async_job(Q_program, draper.backend_online_simulator, False)
+    #async_job(Q_program, draper.backend_real_processor, True)
