@@ -70,6 +70,7 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
         for jobEntry in running_jobs:
             job_result = Q_program.get_api().get_job(jobEntry[1])
             print("Checking job %s..." % (jobEntry[1]))
+            sys.stdout.flush()
             if job_result["status"] == "COMPLETED":
                 print("Done job %s..." % (jobEntry[1]))
                 sys.stdout.flush()
@@ -84,6 +85,7 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
         success = False
         counts = dict()
         calibrations = []
+        computational_result_prob = 0.0
 
         if "qasms" in result and len(result["qasms"]) == 1 and "data" in result["qasms"][0]:
             data = result["qasms"][0]["data"]
@@ -91,9 +93,16 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
                 counts: dict = data["counts"]
                 computational_result = max(counts.keys(), key=(lambda key: counts[key]))
                 success = jobEntry[6] == computational_result
+                shots = jobEntry[5]
+                computational_result_count = max(counts.values())
+                computational_result_prob = float(computational_result_count)/float(shots)
+            if "calibration" in result:
+                calibrations = result["calibration"]
 
-        log = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), jobEntry[0], jobEntry[1], jobEntry[2], jobEntry[3], jobEntry[4],
-                                                 jobEntry[5], jobEntry[6], computational_result, success, counts, calibrations)
+        log = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), jobEntry[0], jobEntry[1],
+                                                       jobEntry[2], jobEntry[3], jobEntry[4],jobEntry[5], jobEntry[6],
+                                                       computational_result, computational_result_prob, success,
+                                                       counts, calibrations)
         print(log)
         sys.stdout.flush()
 
