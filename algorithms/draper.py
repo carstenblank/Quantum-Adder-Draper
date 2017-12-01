@@ -118,18 +118,12 @@ def create_experiment(Q_program: QuantumProgram, a: str, b: str, name:str, backe
 
     # job parameters
     processor = "ibmqx4"
-    #print("Compile & Run manually for '%s' using backend '%s':" % (processor, backend))
-
-    #qobj_id = "@%s: %s(%s,%s) -> %s" % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), name, a, b, expected)
 
     conf = Q_program.get_backend_configuration(processor, list_format=False)
     qobj = Q_program.compile(name_of_circuits=[name], backend=backend, config=conf,
                              max_credits=3)
 
-    qasm = "\n".join(filter(lambda x: len(x) > 0, qc.qasm().split("\n")))#Q_program.get_compiled_qasm(qobj, name)
-    # measurements = list(filter(lambda r: "measure" in r, qasm.split('\n')))
-    # instructions = list(filter(lambda r: "measure" not in r, qasm.split('\n')))
-    #
+    qasm = "\n".join(filter(lambda x: len(x) > 0, ["// draper(%s,%s)->%s" % (a, b, expected)] + qc.qasm().split("\n")))
     # qasm = "\n".join(["// draper(%s,%s)->%s" % (a, b, expected)] + instructions + measurements)
     return qasm, expected, qobj
 

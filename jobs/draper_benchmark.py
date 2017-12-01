@@ -61,10 +61,13 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
         qasm, expected, qobj = draper.create_experiment(Q_program, a, b, "draper",
                                            draper.backend_real_processor, draper.algorithm_prime)
         shots = 1024
-        qasm_alt = qobj["circuits"][0]["compiled_circuit_qasm"]
+        qasm_alt:str = "// draper(%s,%s)->%s\n" % (a, b, expected)
+        qasm_alt += qobj["circuits"][0]["compiled_circuit_qasm"]
 
         credits = Q_program.get_api().get_my_credits()
+        backend_status = Q_program.get_api().backend_status(backend)
         log.debug("Current credits: %s" % credits["remaining"])
+        log.debug("Current backend status: %s" % backend_status)
         while credits["remaining"] < 3 and block_missing_credits:
             time.sleep(10)
             credits = Q_program.get_api().get_my_credits()
@@ -82,7 +85,7 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
         for jobEntry in running_jobs:
             job_result = Q_program.get_api().get_job(jobEntry[1])
             log.debug("Checking job %s..." % (jobEntry[1]))
-            if job_result["status"] == "COMPLETED":
+            if "status" in job_result and job_result["status"] == "COMPLETED":
                 log.debug("Done job %s..." % (jobEntry[1]))
                 running_jobs.remove(jobEntry)
                 jobEntry.append(job_result)
