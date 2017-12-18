@@ -29,7 +29,7 @@ def sync_job(Q_program: QuantumProgram, backend: str):
     bits = ["0b00", "0b01", "0b10", "0b11"]
 
     for a,b in itertools.product(bits, bits):
-        qasm, expected, qobj = draper.create_experiment(Q_program, a, b, "draper",
+        qasm, expected, qobj, version = draper.create_experiment(Q_program, a, b, "draper",
                                                         draper.backend_real_processor,
                                                         draper.algorithm_prime)
         shots = 1000
@@ -47,7 +47,9 @@ def sync_job(Q_program: QuantumProgram, backend: str):
             computational_result = max(counts.keys(), key=(lambda key: counts[key]))
             success = expected == computational_result
 
-        log_msg = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), backend, a, b, op_length, shots, expected, computational_result, success, counts, calibrations)
+        log_msg = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), backend, a, b, op_length,
+                                                        shots, expected, computational_result, success, counts,
+                                                        calibrations, version)
         print(log_msg)
 
 
@@ -58,7 +60,7 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
     done_jobs = []
 
     for a,b in itertools.product(bits, bits):
-        qasm, expected, qobj = draper.create_experiment(Q_program, a, b, "draper",
+        qasm, expected, qobj, version = draper.create_experiment(Q_program, a, b, "draper",
                                            draper.backend_real_processor, draper.algorithm_prime)
         shots = 1024
         qasm_alt:str = "// draper(%s,%s)->%s\n" % (a, b, expected)
@@ -78,7 +80,7 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
         jobId = job_result["id"]
 
         op_length = len(qasm.split("\n"))
-        job = [ backend, jobId, a, b, op_length, shots, expected ]
+        job = [ backend, jobId, a, b, op_length, shots, expected, version ]
         log.debug("Added job %s (%s+%s)..." % (jobId, a, b))
         running_jobs.append(job)
 
@@ -94,7 +96,7 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
         time.sleep(2)
 
     for jobEntry in done_jobs:
-        result = jobEntry[7]
+        result = jobEntry[8]
         computational_result = ""
         success = False
         counts = dict()
@@ -113,37 +115,11 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
             if "calibration" in result:
                 calibrations = result["calibration"]
 
-        log_msg = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), jobEntry[0], jobEntry[1],
+        log_msg = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (datetime.isoformat(datetime.now()), jobEntry[0], jobEntry[1],
                                                        jobEntry[2], jobEntry[3], jobEntry[4],jobEntry[5], jobEntry[6],
                                                        computational_result, computational_result_prob, success,
-                                                       counts, calibrations)
+                                                       counts, calibrations, jobEntry[7])
         log.info(log_msg)
-
-
-def real(Q_program):
-    backend = draper.backend_real_processor
-    bits = ["0b01"] #["0b00", "0b01", "0b10", "0b11"]
-
-    for a,b in itertools.product(bits, bits):
-        qasm, expected, _ = draper.create_experiment(Q_program, a, b, "draper",
-                                           draper.backend_real_processor, draper.algorithm_regular)
-        shots = 1000
-        result: Result = Q_program.execute(["draper"], backend, shots=shots)
-
-        op_length = len(qasm.split("\n"))
-        computational_result = ""
-        success = False
-        counts = dict()
-        calibrations = []
-
-        data = result.get_data("draper")
-        if "counts" in data:
-            counts: dict = data["counts"]
-            computational_result = max(counts.keys(), key=(lambda key: counts[key]))
-            success = expected == computational_result
-
-        log = "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (backend, a, b, op_length, shots, expected, computational_result, success, counts, calibrations)
-        print(log)
 
 
 if __name__ == "__main__":

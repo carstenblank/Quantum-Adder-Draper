@@ -13,53 +13,93 @@ backend_real_processor = "ibmqx4"
 backend_online_simulator = "ibmqx_qasm_simulator"
 
 
+def coupling_direction(coupling_map: dict, a: Tuple[QuantumRegister,int], b: Tuple[QuantumRegister,int]) -> int:
+    if b[1] in coupling_map and a[1] in coupling_map[b[1]]:
+        return 1
+    if a[1] in coupling_map and b[1] in coupling_map[a[1]]:
+        return -1
+    return 0
+
+
 def algorithm_prime(qc: QuantumCircuit, a1: Tuple[QuantumRegister,int], a2: Tuple[QuantumRegister,int],
-                      b1: Tuple[QuantumRegister,int], b2: Tuple[QuantumRegister,int]) -> QuantumCircuit:
+                      b1: Tuple[QuantumRegister,int], b2: Tuple[QuantumRegister,int], coupling_map: dict) -> QuantumCircuit:
+    coupling_a1_2_a2 = coupling_direction(coupling_map,a1,a2)
+    coupling_a1_2_b1 = coupling_direction(coupling_map,a1,b1)
+    coupling_a1_2_b2 = coupling_direction(coupling_map,a1,b2)
+    coupling_a2_2_b2 = coupling_direction(coupling_map,a2,b2)
+
+    if coupling_a1_2_a2 == 0 or coupling_a1_2_b1 == 0 or coupling_a1_2_b2 == 0 or coupling_a2_2_b2 == 0:
+        print("a1->a2: %d, a1->b1: %d, a1->b2: %d, a2->b2: %d" %
+              (coupling_a1_2_a2, coupling_a1_2_b1, coupling_a1_2_b2, coupling_a2_2_b2))
+        raise AssertionError("One coupling is impossible!")
+
     qc.comment(["BEGIN QFT"])
     qc.h(a1)
-    qc.cphase(math.pi/2, a1, a2, cnot_back=True)
+    qc.cphase(math.pi/2, a1, a2, cnot_back=coupling_a1_2_a2 == -1)
     qc.h(a2)
     qc.comment(["END QFT"])
 
-    qc.cphase(math.pi, a2, b2)
-    qc.cphase(math.pi/2, a1, b2)
-    qc.cphase(math.pi, a1, b1, cnot_back=True)
+    qc.cphase(math.pi, a2, b2, cnot_back=coupling_a2_2_b2 == -1)
+    qc.cphase(math.pi/2, a1, b2, cnot_back=coupling_a1_2_b2 == -1)
+    qc.cphase(math.pi, a1, b1, cnot_back=coupling_a1_2_b1 == -1)
 
     qc.comment(["BEGIN QFT†"])
     qc.h(a2)
-    qc.cphase(math.pi/2, a1, a2, cnot_back=True).inverse()
+    qc.cphase(math.pi/2, a1, a2, cnot_back=coupling_a1_2_a2 == -1).inverse()
     qc.h(a1)
     qc.comment(["END QFT†"])
     return qc
 
 
 def algorithm_regular(qc: QuantumCircuit, a1: Tuple[QuantumRegister,int], a2: Tuple[QuantumRegister,int],
-                      b1: Tuple[QuantumRegister,int], b2: Tuple[QuantumRegister,int]) -> QuantumCircuit:
+                      b1: Tuple[QuantumRegister,int], b2: Tuple[QuantumRegister,int], coupling_map: dict) -> QuantumCircuit:
+
+    coupling_a1_2_a2 = coupling_direction(coupling_map, a1, a2)
+    coupling_a1_2_b1 = coupling_direction(coupling_map, a1, b1)
+    coupling_a1_2_b2 = coupling_direction(coupling_map, a1, b2)
+    coupling_a2_2_b2 = coupling_direction(coupling_map, a2, b2)
+
+    if coupling_a1_2_a2 == 0 or coupling_a1_2_b1 == 0 or coupling_a1_2_b2 == 0 or coupling_a2_2_b2 == 0:
+        print("a1->a2: %d, a1->b1: %d, a1->b2: %d, a2->b2: %d" %
+              (coupling_a1_2_a2, coupling_a1_2_b1, coupling_a1_2_b2, coupling_a2_2_b2))
+        raise AssertionError("One coupling is impossible!")
+
     qc.comment(["BEGIN QFT"])
     qc.h(a1)
-    qc.crk(2, a1, a2, cnot_back=True)
+    qc.crk(2, a1, a2, cnot_back=coupling_a1_2_a2 == -1)
     qc.h(a2)
     qc.comment(["END QFT"])
 
-    qc.crk(1, a2, b2)
-    qc.crk(2, a1, b2)
-    qc.crk(1, a1, b1, cnot_back=True)
+    qc.crk(1, a2, b2, cnot_back=coupling_a2_2_b2 == -1)
+    qc.crk(2, a1, b2, cnot_back=coupling_a1_2_b2 == -1)
+    qc.crk(1, a1, b1, cnot_back=coupling_a1_2_b1 == -1)
 
     qc.comment(["BEGIN QFT†"])
     qc.h(a2)
-    qc.crk(-2, a1, a2, cnot_back=True)
+    qc.crk(-2, a1, a2, cnot_back=coupling_a1_2_a2 == -1)
     qc.h(a1)
     qc.comment(["END QFT†"])
     return qc
 
 
 def algorithm_test(qc: QuantumCircuit, a1: Tuple[QuantumRegister,int], a2: Tuple[QuantumRegister,int],
-                      b1: Tuple[QuantumRegister,int], b2: Tuple[QuantumRegister,int]) -> QuantumCircuit:
+                      b1: Tuple[QuantumRegister,int], b2: Tuple[QuantumRegister,int], coupling_map: dict) -> QuantumCircuit:
+
+    coupling_a1_2_a2 = coupling_direction(coupling_map, a1, a2)
+    coupling_a1_2_b1 = coupling_direction(coupling_map, a1, b1)
+    coupling_a1_2_b2 = coupling_direction(coupling_map, a1, b2)
+    coupling_a2_2_b2 = coupling_direction(coupling_map, a2, b2)
+
+    if coupling_a1_2_a2 == 0 or coupling_a1_2_b1 == 0 or coupling_a1_2_b2 == 0 or coupling_a2_2_b2 == 0:
+        print("a1->a2: %d, a1->b1: %d, a1->b2: %d, a2->b2: %d" %
+              (coupling_a1_2_a2, coupling_a1_2_b1, coupling_a1_2_b2, coupling_a2_2_b2))
+        raise AssertionError("One coupling is impossible!")
+
     #qc.h(a1)
     #qc.crk(2, a1, a2, cnot_back=True)
     # qc.h(a2)
     #
-    qc.crk(1, a2, b2)
+    qc.crk(1, a2, b2, cnot_back=coupling_a2_2_b2 == -1)
     # qc.crk(2, a1, b2)
     # qc.crk(1, a1, b1, cnot_back=True)
     #
@@ -72,12 +112,12 @@ def algorithm_test(qc: QuantumCircuit, a1: Tuple[QuantumRegister,int], a2: Tuple
 def create_experiment(Q_program: QuantumProgram, a: str, b: str, name:str, backend: str,
                       algorithm: Callable[[QuantumCircuit,Tuple[QuantumRegister,int],Tuple[QuantumRegister,int],Tuple[QuantumRegister,int],Tuple[QuantumRegister,int]],QuantumCircuit] = algorithm_regular,
                       silent=True) \
-        -> Tuple[str,str, dict]:
+        -> Tuple[str,str, dict, str]:
     # qubit mapping
     index_a1 = 2
-    index_a2 = 4
-    index_b1 = 0
-    index_b2 = 3
+    index_a2 = 1
+    index_b1 = 3
+    index_b2 = 0
 
     # input build
     q: QuantumRegister = Q_program.create_quantum_register("q", 5)
@@ -112,20 +152,19 @@ def create_experiment(Q_program: QuantumProgram, a: str, b: str, name:str, backe
         if not silent: print("b2 setting to 1")
         qc.x(b2)
 
-    algorithm(qc,a1,a2,b1,b2)
+    processor = "ibmqx4"
+    conf = Q_program.get_backend_configuration(processor, list_format=False)
+    coupling_map = conf["coupling_map"]
+
+    algorithm(qc,a1,a2,b1,b2,coupling_map)
 
     qc.measure(q, ans)
 
-    # job parameters
-    processor = "ibmqx4"
-
-    conf = Q_program.get_backend_configuration(processor, list_format=False)
+    # compilation
     qobj = Q_program.compile(name_of_circuits=[name], backend=backend, config=conf,
                              max_credits=3)
-
-    qasm = "\n".join(filter(lambda x: len(x) > 0, ["// draper(%s,%s)->%s" % (a, b, expected)] + qc.qasm().split("\n")))
-    # qasm = "\n".join(["// draper(%s,%s)->%s" % (a, b, expected)] + instructions + measurements)
-    return qasm, expected, qobj
+    qasm = "\n".join(filter(lambda x: len(x) > 0, ["// V1.1 draper(%s,%s)->%s" % (a, b, expected)] + qc.qasm().split("\n")))
+    return qasm, expected, qobj, "V1.1"
 
 
 if __name__ == "__main__":
@@ -133,7 +172,7 @@ if __name__ == "__main__":
     Q_program: QuantumProgram = QuantumProgram()
     Q_program.set_api(credentials.GetToken(), credentials.GetApiUri())
 
-    qasm, expected, _ = create_experiment(Q_program, "0b11", "0b01", "draper",
+    qasm, expected, _, _ = create_experiment(Q_program, "0b11", "0b01", "draper",
                                        "local_qasm_simulator", algorithm_regular)
 
     print(len(qasm.split("\n")))
