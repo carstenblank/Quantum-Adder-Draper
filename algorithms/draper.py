@@ -111,13 +111,23 @@ def algorithm_test(qc: QuantumCircuit, a1: Tuple[QuantumRegister,int], a2: Tuple
 
 def create_experiment(Q_program: QuantumProgram, a: str, b: str, name:str, backend: str,
                       algorithm: Callable[[QuantumCircuit,Tuple[QuantumRegister,int],Tuple[QuantumRegister,int],Tuple[QuantumRegister,int],Tuple[QuantumRegister,int]],QuantumCircuit] = algorithm_regular,
-                      silent=True) \
+                      silent=True, qm : Dict[str,int] = None) \
         -> Tuple[str,str, dict, str]:
     # qubit mapping
-    index_a1 = 2
-    index_a2 = 1
-    index_b1 = 3
-    index_b2 = 0
+    #index_a1 = 2
+    #index_a2 = 4
+    #index_b1 = 0
+    #index_b2 = 3
+    if qm is None:
+        index_a1 = 2
+        index_a2 = 1
+        index_b1 = 3
+        index_b2 = 0
+    else:
+        index_a1 = qm["a1"]
+        index_a2 = qm["a2"]
+        index_b1 = qm["b1"]
+        index_b2 = qm["b2"]
 
     # input build
     q: QuantumRegister = Q_program.create_quantum_register("q", 5)
@@ -167,13 +177,30 @@ def create_experiment(Q_program: QuantumProgram, a: str, b: str, name:str, backe
     return qasm, expected, qobj, "V1.1"
 
 
+def get_version(version: str) -> Dict[str,int]:
+    mapping = {}
+
+    if version == "V1.0":
+        mapping["a1"] = 2
+        mapping["a2"] = 4
+        mapping["b1"] = 0
+        mapping["b2"] = 3
+    if version == "V1.1":
+        mapping["a1"] = 2
+        mapping["a2"] = 1
+        mapping["b1"] = 3
+        mapping["b2"] = 0
+
+    return mapping
+
+
 if __name__ == "__main__":
     credentials = interfaces.ApiCredentials()
     Q_program: QuantumProgram = QuantumProgram()
     Q_program.set_api(credentials.GetToken(), credentials.GetApiUri())
 
     qasm, expected, _, _ = create_experiment(Q_program, "0b11", "0b01", "draper",
-                                       "local_qasm_simulator", algorithm_regular)
+                                       "local_qasm_simulator", algorithm_regular, qm=get_version("V1.1"))
 
     print(len(qasm.split("\n")))
     print(qasm)
