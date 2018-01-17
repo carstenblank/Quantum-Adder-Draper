@@ -13,6 +13,33 @@ backend_real_processor = "ibmqx4"
 backend_online_simulator = "ibmqx_qasm_simulator"
 
 
+class Experiment(object):
+
+    def __init__(self, name, backend, version, qubit_mapping, algorithm):
+        self.name = name
+        self.backend = backend
+        self.version = version
+        self.qubit_mapping = qubit_mapping
+        self.algorithm = algorithm
+
+    def qasm(self, input, output):
+        return [
+            "//@name={%s}" % self.name,
+            "//@input={%s}" % str(input),
+            "//@output={%s}" % str(output),
+            "//@algorithm={%s}" % self.algorithm,
+            "//@version{%s}" % self.version,
+            "//@mapping{%s}" % self.qubit_mapping
+        ]
+
+    @staticmethod
+    def coupling_direction(coupling_map: dict, a: Tuple[QuantumRegister, int], b: Tuple[QuantumRegister, int]) -> int:
+        if b[1] in coupling_map and a[1] in coupling_map[b[1]]:
+            return 1
+        if a[1] in coupling_map and b[1] in coupling_map[a[1]]:
+            return -1
+        return 0
+
 def coupling_direction(coupling_map: dict, a: Tuple[QuantumRegister,int], b: Tuple[QuantumRegister,int]) -> int:
     if b[1] in coupling_map and a[1] in coupling_map[b[1]]:
         return 1
@@ -109,15 +136,18 @@ def algorithm_test(qc: QuantumCircuit, a1: Tuple[QuantumRegister,int], a2: Tuple
     return qc
 
 
-def create_experiment(Q_program: QuantumProgram, a: str, b: str, name:str, backend: str,
-                      algorithm: Callable[[QuantumCircuit,Tuple[QuantumRegister,int],Tuple[QuantumRegister,int],Tuple[QuantumRegister,int],Tuple[QuantumRegister,int]],QuantumCircuit] = algorithm_regular,
-                      silent=True, qm : Dict[str,int] = None) \
-        -> Tuple[str,str, dict, str]:
+# def create_experiment(Q_program: QuantumProgram, a: str, b: str, name:str, backend: str,
+#                       algorithm: Callable[[QuantumCircuit,Tuple[QuantumRegister,int],Tuple[QuantumRegister,int],Tuple[QuantumRegister,int],Tuple[QuantumRegister,int]],QuantumCircuit] = algorithm_regular,
+#                       silent=True, qm : Dict[str,int] = None) -> Tuple[str,str, dict, str]:
+
+def create_experiment(Q_program: QuantumProgram, a: str, b: str, experiment: Experiment, silent=True) -> Tuple[str, dict, str]:
+
+    qm = experiment.qubit_mapping
+    name = experiment.name
+    algorithm = experiment.algorithm
+    backend = experiment.backend
+
     # qubit mapping
-    #index_a1 = 2
-    #index_a2 = 4
-    #index_b1 = 0
-    #index_b2 = 3
     if qm is None:
         index_a1 = 2
         index_a2 = 1
@@ -171,13 +201,16 @@ def create_experiment(Q_program: QuantumProgram, a: str, b: str, name:str, backe
     qc.measure(q, ans)
 
     # compilation
-    qobj = Q_program.compile(name_of_circuits=[name], backend=backend, config=conf,
-                             max_credits=3)
-    qasm = "\n".join(filter(lambda x: len(x) > 0, ["// V1.1 draper(%s,%s)->%s" % (a, b, expected)] + qc.qasm().split("\n")))
-    return qasm, expected, qobj, "V1.1"
+    qobj = Q_program.compile(name_of_circuits=[name], backend=backend, config=conf,max_credits=3)
+    qasm = Q_program.get_compiled_qasm(qobj, name)
+    qasm_lines = experiment.qasm((a,b), expected) + qasm.split("\n")
+
+    qasm = "\n".join(filter(lambda x: len(x) > 0, qasm_lines))
+
+    return qasm, qobj, expected
 
 
-def get_version(version: str) -> Dict[str,int]:
+def get_qubit_mapping(version: str) -> Dict[str,int]:
     mapping = {}
 
     if version == "V1.0":
@@ -199,8 +232,8 @@ if __name__ == "__main__":
     Q_program: QuantumProgram = QuantumProgram()
     Q_program.set_api(credentials.GetToken(), credentials.GetApiUri())
 
-    qasm, expected, _, _ = create_experiment(Q_program, "0b11", "0b01", "draper",
-                                       "local_qasm_simulator", algorithm_regular, qm=get_version("V1.1"))
+    experiment = Experiment("draper", "local_qasm_simulator", "V1.1", get_qubit_mapping("V1.1"), algorithm_prime)
 
-    print(len(qasm.split("\n")))
+    qasm, qobj, output = create_experiment(Q_program, "0b11", "0b01", experiment)
+
     print(qasm)

@@ -25,13 +25,11 @@ log = logging.getLogger("draper")
 log.setLevel(10)
 
 
-def sync_job(Q_program: QuantumProgram, backend: str):
+def sync_job(Q_program: QuantumProgram, experiment: draper.Experiment):
     bits = ["0b00", "0b01", "0b10", "0b11"]
 
     for a,b in itertools.product(bits, bits):
-        qasm, expected, qobj, version = draper.create_experiment(Q_program, a, b, "draper",
-                                                        draper.backend_real_processor,
-                                                        draper.algorithm_prime)
+        qasm, qobj, expected  = draper.create_experiment(Q_program, a, b, experiment)
         shots = 1000
         result: Result = Q_program.execute(["draper"], backend, shots=shots)
 
@@ -53,21 +51,18 @@ def sync_job(Q_program: QuantumProgram, backend: str):
         print(log_msg)
 
 
-def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = True):
+def async_job(Q_program: QuantumProgram, experiment: draper.Experiment, block_missing_credits = True):
     bits = ["0b00", "0b01", "0b10", "0b11"]
 
     running_jobs = []
     done_jobs = []
 
     for a,b in itertools.product(bits, bits):
-        qasm, expected, qobj, version = draper.create_experiment(Q_program, a, b, "draper",
-                                           draper.backend_real_processor, draper.algorithm_prime)
+        qasm, qobj, expected = draper.create_experiment(Q_program, a, b, experiment)
         shots = 1024
-        qasm_alt:str = "// draper(%s,%s)->%s\n" % (a, b, expected)
-        qasm_alt += qobj["circuits"][0]["compiled_circuit_qasm"]
 
         credits = Q_program.get_api().get_my_credits()
-        backend_status = Q_program.get_api().backend_status(backend)
+        backend_status = Q_program.get_api().backend_status(experiment.backend)
         log.debug("Current credits: %s" % credits["remaining"])
         log.debug("Current backend status: %s" % backend_status)
         while credits["remaining"] < 3 and block_missing_credits:
@@ -76,11 +71,11 @@ def async_job(Q_program: QuantumProgram, backend: str, block_missing_credits = T
             log.debug("Current credits: %s" % credits["remaining"])
             log.debug("Current backend status: %s" % backend_status)
 
-        job_result = Q_program.get_api().run_job([ {"qasm": qasm_alt} ], backend, shots, max_credits=3, seed=None)
+        job_result = Q_program.get_api().run_job([ {"qasm": qasm} ], experiment.backend, shots, max_credits=3, seed=None)
         jobId = job_result["id"]
 
         op_length = len(qasm.split("\n"))
-        job = [ backend, jobId, a, b, op_length, shots, expected, version ]
+        job = [ experiment.backend, jobId, a, b, op_length, shots, expected, experiment.version ]
         log.debug("Added job %s (%s+%s)..." % (jobId, a, b))
         running_jobs.append(job)
 
@@ -126,7 +121,21 @@ if __name__ == "__main__":
     credentials = ApiCredentials()
     Q_program: QuantumProgram = QuantumProgram()
     Q_program.set_api(credentials.GetToken(), credentials.GetApiUri())
-    if len(sys.argv) > 1 and sys.argv[1] == "-real":
-        async_job(Q_program, draper.backend_real_processor, True)
-    else:
-        async_job(Q_program, draper.backend_online_simulator, False)
+
+    backend = draper.backend_online_simulator
+    version = "V1.0"
+    block_at_no_credits = True
+
+    for arg in sys.argv:
+        if "-real" == arg:
+            backend = draper.backend_real_processor
+            block_at_no_credits = True
+        if "-sim" == arg:
+            backend = draper.backend_online_simulator
+            block_at_no_credits = False
+        if "-version=" in arg:
+            version = arg.replace("-version=", "")
+
+    experiment = draper.Experiment("draper", backend, version, draper.get_qubit_mapping(version), draper.algorithm_prime)
+
+    async_job(Q_program, experiment, block_at_no_credits)
