@@ -2,43 +2,92 @@ from datetime import datetime
 from typing import Dict, Tuple, Callable, Any
 
 import math
+
+import itertools
 from qiskit import QuantumProgram, QuantumRegister, QuantumCircuit, Result
 from extensions import qft_extended
 
 import credentials
 import interfaces
+from models import Experiment
 
 backend_local_simulator = "local_qasm_simulator"
 backend_real_processor = "ibmqx4"
 backend_online_simulator = "ibmqx_qasm_simulator"
 
 
-class Experiment(object):
+class DraperExperiment(Experiment):
 
-    def __init__(self, name, backend, version, qubit_mapping, algorithm):
-        self.name = name
-        self.backend = backend
-        self.version = version
-        self.qubit_mapping = qubit_mapping
-        self.algorithm = algorithm
+    def __init__(self, version, backend):
+        super(DraperExperiment, self).__init__("draper", backend, version, get_qubit_mapping(version), algorithm_prime)
 
-    def qasm(self, input, output):
-        return [
-            "//@name={%s}" % self.name,
-            "//@input={%s}" % str(input),
-            "//@output={%s}" % str(output),
-            "//@algorithm={%s}" % self.algorithm,
-            "//@version{%s}" % self.version,
-            "//@mapping{%s}" % self.qubit_mapping
-        ]
+    def create_experiment(self, qp: QuantumProgram, input) -> Tuple[str, dict, str]:
+        a, b = input
+        qm = self.qubit_mapping
+        name = self.name
+        algorithm = self.algorithm
+        backend = self.backend
 
-    @staticmethod
-    def coupling_direction(coupling_map: dict, a: Tuple[QuantumRegister, int], b: Tuple[QuantumRegister, int]) -> int:
-        if b[1] in coupling_map and a[1] in coupling_map[b[1]]:
-            return 1
-        if a[1] in coupling_map and b[1] in coupling_map[a[1]]:
-            return -1
-        return 0
+        # qubit mapping
+        if qm is None:
+            index_a1 = 2
+            index_a2 = 1
+            index_b1 = 3
+            index_b2 = 0
+        else:
+            index_a1 = qm["a1"]
+            index_a2 = qm["a2"]
+            index_b1 = qm["b1"]
+            index_b2 = qm["b2"]
+
+        # input build
+        q: QuantumRegister = qp.create_quantum_register("q", 5)
+        ans = qp.create_classical_register("ans", 5)
+        qc: QuantumCircuit = qp.create_circuit(name, [q], [ans])
+
+        a1: Tuple[QuantumRegister, int] = q[index_a1]
+        a2: Tuple[QuantumRegister, int] = q[index_a2]
+        b1: Tuple[QuantumRegister, int] = q[index_b1]
+        b2: Tuple[QuantumRegister, int] = q[index_b2]
+        expected = list("00000")
+        expected_result = (int(a, 2) + int(b, 2)) % 4
+        expected[index_a1] = str(int(expected_result / 2) % 2)
+        expected[index_a2] = str(int(expected_result / 1) % 2)
+        expected[index_b1] = b[2]
+        expected[index_b2] = b[3]
+        expected = "".join(reversed(expected))
+
+        # circuit setup
+        if a[2] == "1":
+            qc.x(a1)
+        if a[3] == "1":
+            qc.x(a2)
+        if b[2] == "1":
+            qc.x(b1)
+        if b[3] == "1":
+            qc.x(b2)
+
+        processor = self.backend
+        conf = qp.get_backend_configuration(processor, list_format=False)
+        coupling_map = conf["coupling_map"]
+
+        algorithm(qc, a1, a2, b1, b2, coupling_map)
+
+        qc.measure(q, ans)
+
+        # compilation
+        qobj = qp.compile(name_of_circuits=[name], backend=backend, config=conf, max_credits=3)
+        qasm = qp.get_compiled_qasm(qobj, name)
+        qasm_lines = self.qasm((a, b), expected) + qasm.split("\n")
+
+        qasm = "\n".join(filter(lambda x: len(x) > 0, qasm_lines))
+
+        return qasm, qobj, expected
+
+    def get_inputs(self):
+        bits = ["0b00", "0b01", "0b10", "0b11"]
+        return itertools.product(bits, bits)
+
 
 def coupling_direction(coupling_map: dict, a: Tuple[QuantumRegister,int], b: Tuple[QuantumRegister,int]) -> int:
     if b[1] in coupling_map and a[1] in coupling_map[b[1]]:
@@ -135,10 +184,6 @@ def algorithm_test(qc: QuantumCircuit, a1: Tuple[QuantumRegister,int], a2: Tuple
     # qc.h(a1)
     return qc
 
-
-# def create_experiment(Q_program: QuantumProgram, a: str, b: str, name:str, backend: str,
-#                       algorithm: Callable[[QuantumCircuit,Tuple[QuantumRegister,int],Tuple[QuantumRegister,int],Tuple[QuantumRegister,int],Tuple[QuantumRegister,int]],QuantumCircuit] = algorithm_regular,
-#                       silent=True, qm : Dict[str,int] = None) -> Tuple[str,str, dict, str]:
 
 def create_experiment(Q_program: QuantumProgram, a: str, b: str, experiment: Experiment, silent=True) -> Tuple[str, dict, str]:
 

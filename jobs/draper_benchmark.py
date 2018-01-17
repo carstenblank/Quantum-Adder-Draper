@@ -9,6 +9,7 @@ from qiskit import QuantumProgram, Result
 import algorithms.draper as draper
 from interfaces import ApiCredentials
 import credentials
+from models import Experiment
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -25,7 +26,7 @@ log = logging.getLogger("draper")
 log.setLevel(10)
 
 
-def sync_job(Q_program: QuantumProgram, experiment: draper.Experiment):
+def sync_job(Q_program: QuantumProgram, experiment: Experiment):
     bits = ["0b00", "0b01", "0b10", "0b11"]
 
     for a,b in itertools.product(bits, bits):
@@ -51,27 +52,27 @@ def sync_job(Q_program: QuantumProgram, experiment: draper.Experiment):
         print(log_msg)
 
 
-def async_job(Q_program: QuantumProgram, experiment: draper.Experiment, block_missing_credits = True):
+def async_job(qp: QuantumProgram, experiment: Experiment, block_missing_credits = True):
     bits = ["0b00", "0b01", "0b10", "0b11"]
 
     running_jobs = []
     done_jobs = []
 
     for a,b in itertools.product(bits, bits):
-        qasm, qobj, expected = draper.create_experiment(Q_program, a, b, experiment)
+        qasm, qobj, expected = experiment.create_experiment(qp, (a, b))
         shots = 1024
 
-        credits = Q_program.get_api().get_my_credits()
-        backend_status = Q_program.get_api().backend_status(experiment.backend)
+        credits = qp.get_api().get_my_credits()
+        backend_status = qp.get_api().backend_status(experiment.backend)
         log.debug("Current credits: %s" % credits["remaining"])
         log.debug("Current backend status: %s" % backend_status)
         while credits["remaining"] < 3 and block_missing_credits:
             time.sleep(10)
-            credits = Q_program.get_api().get_my_credits()
+            credits = qp.get_api().get_my_credits()
             log.debug("Current credits: %s" % credits["remaining"])
             log.debug("Current backend status: %s" % backend_status)
 
-        job_result = Q_program.get_api().run_job([ {"qasm": qasm} ], experiment.backend, shots, max_credits=3, seed=None)
+        job_result = qp.get_api().run_job([{"qasm": qasm}], experiment.backend, shots, max_credits=3, seed=None)
         jobId = job_result["id"]
 
         op_length = len(qasm.split("\n"))
@@ -81,7 +82,7 @@ def async_job(Q_program: QuantumProgram, experiment: draper.Experiment, block_mi
 
     while len(running_jobs) > 0:
         for jobEntry in running_jobs:
-            job_result = Q_program.get_api().get_job(jobEntry[1])
+            job_result = qp.get_api().get_job(jobEntry[1])
             log.debug("Checking job %s..." % (jobEntry[1]))
             if "status" in job_result and job_result["status"] == "COMPLETED":
                 log.debug("Done job %s..." % (jobEntry[1]))
@@ -136,6 +137,7 @@ if __name__ == "__main__":
         if "-version=" in arg:
             version = arg.replace("-version=", "")
 
-    experiment = draper.Experiment("draper", backend, version, draper.get_qubit_mapping(version), draper.algorithm_prime)
+    from algorithms import DraperExperiment
+    experiment = DraperExperiment(backend, version)
 
     async_job(Q_program, experiment, block_at_no_credits)
