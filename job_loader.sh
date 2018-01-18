@@ -6,6 +6,6 @@ if [[ "$exists" -gt "0" ]]; then
     echo "Job Runner process is running...";
 else
     echo "Starting Job Runner...";
-    screen -d -m -S job_runner bash -c "cd $HOME/PycharmProjects/quantum-adder-draper/jobs && /usr/local/bin/python3.6 job_runner.py -config=../job_config/draper.log &>> ../output/jobs-draper.log"
+    screen -d -m -S job_runner bash -c "cd $HOME/PycharmProjects/quantum-adder-draper/jobs && /usr/local/bin/python3.6 job_runner.py -config=../job_config/draper.real.config &>> ../output/jobs.draper.real.log"
     screen -list
 fi;
