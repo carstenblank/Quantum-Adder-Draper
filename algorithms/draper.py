@@ -85,8 +85,8 @@ class DraperExperiment(Experiment):
         return qasm, qobj, expected
 
     def get_inputs(self):
-        bits = []
-        #bits = ["0b00", "0b01", "0b10", "0b11"]
+        #bits = []
+        bits = ["0b00", "0b01", "0b10", "0b11"]
         return itertools.product(bits, bits)
 
 
