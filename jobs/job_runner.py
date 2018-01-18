@@ -127,42 +127,95 @@ def async_job(qp: QuantumProgram, experiment: Experiment, block_missing_credits=
     for job_entry in done_jobs:
         log.info(job_entry.to_log())
 
+    commands.update_config_file()
+
+
+class Commands(object):
+    def __init__(self):
+        self.backend = models.backend_online_simulator
+        self.is_sim = True
+        self.experiment: Experiment = None
+        self.version = "V1.0"
+        self.block_at_no_credits = True
+        self.experiment_name = ""
+        self.configfile = None
+        self.config_index = -1
+
+    def load(self, args):
+        for arg in args:
+            if "-ibmqx5" == arg:
+                self.backend = models.backend_online_ibmqx5
+            if "-ibmqx4" == arg:
+                self.backend = models.backend_online_ibmqx4
+            if "-ibmqx2" == arg:
+                self.backend = models.backend_online_ibmqx2
+            if "-sim" == arg:
+                self.block_at_no_credits = False
+                self.is_sim = True
+            if "-real" == arg:
+                self.block_at_no_credits = True
+                self.is_sim = False
+            if "-version=" in arg:
+                self.version = arg.replace("-version=", "")
+            if "-config=" in arg:
+                self.configfile = arg.replace("-config=", "")
+            if "-experiment=" in arg:
+                self.experiment_name = arg.replace("-experiment=", "")
+
+    def update_config_file(self):
+        import io
+        programs: list
+        with io.open(self.configfile, newline='\n') as file:
+            programs = [[index] + line.split(";") for index, line in enumerate(file.readlines())]
+
+        [index, args, count] = programs[self.config_index]
+        lines = []
+        for prg in programs:
+            if prg[0] != index:
+                lines.append(";".join([ prg[1], prg[2].replace("\n","") ]))
+            else:
+                lines.append(";".join([args, str(int(count) + 1)]))
+
+        with io.open(self.configfile, mode='w', newline="\n") as file:
+            file.write("\n".join(lines))
+
+    @staticmethod
+    def load_from_config_file(config_file, qc: QuantumProgram):
+        import io
+        with io.open(config_file) as file:
+            programs = [ [index] + line.split(";") for index,line in enumerate(file.readlines())]
+            sorted_programs = list(sorted(programs, key=lambda k: k[2]))
+            for prg in sorted_programs:
+                [index, args, count] = prg
+                commands = Commands()
+                commands.load(args.split(" "))
+                status = qc.get_api().backend_status(commands.backend)
+                if "available" in status and status["available"]:
+                    commands.config_index = index
+                    commands.configfile = config_file
+                    return commands
+        return None
+
+    def experiment_lookup(self):
+        if len(self.experiment_name) == 0:
+            raise Exception("Experiment not given!")
+
+        if self.experiment_name == "draper":
+            from algorithms import DraperExperiment
+            self.experiment = DraperExperiment(self.version, self.backend)
+
 
 if __name__ == "__main__":
     credentials = ApiCredentials()
     Q_program: QuantumProgram = QuantumProgram()
     Q_program.set_api(credentials.GetToken(), credentials.GetApiUri())
 
-    backend = models.backend_online_simulator
-    is_sim = True
-    experiment: Experiment
-    version = "V1.0"
-    block_at_no_credits = True
-    experiment_name = ""
+    commands = Commands()
+    commands.load(sys.argv)
+    if commands.configfile is not None:
+        commands = Commands.load_from_config_file(commands.configfile, Q_program)
+    # command line arguments have precedence, hence load them again
+    commands.load(sys.argv)
+    commands.experiment_lookup()
 
-    for arg in sys.argv:
-        if "-ibmqx5" == arg:
-            backend = models.backend_online_ibmqx5
-        if "-ibmqx4" == arg:
-            backend = models.backend_online_ibmqx4
-        if "-ibmqx2" == arg:
-            backend = models.backend_online_ibmqx2
-        if "-sim" == arg:
-            block_at_no_credits = False
-            is_sim = True
-        if "-real" == arg:
-            block_at_no_credits = True
-            is_sim = False
-        if "-version=" in arg:
-            version = arg.replace("-version=", "")
-        if "-experiment=" in arg:
-            experiment_name = arg.replace("-experiment=", "")
-
-    if len(experiment_name) == 0:
-        raise Exception("Experiment not given!")
-
-    if experiment_name == "draper":
-        from algorithms import DraperExperiment
-        experiment = DraperExperiment(version, backend)
-
-    async_job(Q_program, experiment, block_at_no_credits, is_sim)
+    async_job(Q_program, commands.experiment, commands.block_at_no_credits, commands.is_sim)
