@@ -190,7 +190,7 @@ class Commands(object):
                 commands = Commands()
                 commands.load(args.split(" "))
                 status = qc.get_api().backend_status(commands.backend)
-                if "available" in status and status["available"]:
+                if "available" in status and status["available"] and status["pending_jobs"] < 15:
                     commands.config_index = index
                     commands.configfile = config_file
                     return commands
